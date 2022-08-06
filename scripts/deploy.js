@@ -9,14 +9,14 @@ const hre = require("hardhat");
 async function main() {
 
   const SLABS = await hre.ethers.getContractFactory("SLABS");
-  const sLabs = await SLABS.deploy('Starter Labs', 'SLABS');
+  const sLabs = await SLABS.deploy();
 
   await sLabs.deployed();
 
   console.log("SLABS deployed to:", sLabs.address);
 
   const LABMONSTER = await hre.ethers.getContractFactory('LabMonster');
-  const labMonster = await LABMONSTER.deploy(1305, 'QmZWzAUMs8G7Bp9a1w8Kawu8UR71d5mipkyD9f49hsgHm3', sLabs.address, 15)
+  const labMonster = await LABMONSTER.deploy(sLabs.address)
 
   await labMonster.deployed();
 

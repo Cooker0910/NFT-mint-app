@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { ethers, providers } from 'ethers';
 import Web3 from 'web3';
 import './App.css';
+import SlabsAbi from './assets/SlabsAbi.json';
+import MonsterAbi from './assets/MonsterAbi.json';
+
+const SLABS = '0x383474C4532e1028327E1e5a75a6A480C775D9E3'
+const LABMONSTER = '0x7f0e3Fa937657D45e3848b5710962F9b7A1A5B1E'
+const web3 = new Web3(window.ethereum)
+const SlabsContract = new web3.eth.Contract(SlabsAbi, SLABS);
+const MonsterContract = new web3.eth.Contract(MonsterAbi, LABMONSTER)
 
 function App() {
 
@@ -11,7 +19,6 @@ function App() {
 
   const customWeb3 = new Web3(new Web3.providers.HttpProvider('https://rpc-mumbai.maticvigil.com'));
   const chainId = 80001
-  const web3Provider = '';
 
   const btnhandler = async() => {
   
@@ -61,6 +68,32 @@ function App() {
     }
   }
 
+  const gas = {
+    gasPrice: ethers.utils.parseUnits('100', 'gwei'),
+    gasLimit: 1100000
+  }
+  
+  const mintNow = async() => {
+    try{
+      // let res = await SlabsContract.methods.approve(LABMONSTER, 10000).send({from: userAddress});
+      // if(res) {
+        let rollDice = await MonsterContract.methods.rollDice().send({
+          from: userAddress,
+          ...gas
+        });
+        console.log('roll dice', rollDice)
+        if(rollDice) {
+          let house = await MonsterContract.methods.house(userAddress).call()
+          console.log('house', house)
+
+        }
+      // }
+      // console.log(res)
+    } catch(e) {
+      console.log("error", e)
+    }
+  }
+
   return (
     <div className="App">
       <p>LAB MONSTERS created by Starter Labs</p>
@@ -69,7 +102,7 @@ function App() {
         :
         <button onClick={btnhandler}>Connect Wallet</button>
       }
-      <button>Mint Now</button>
+      <button onClick={mintNow}>Mint Now</button>
     </div>
   );
 }
