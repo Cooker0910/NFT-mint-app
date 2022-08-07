@@ -1,23 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ethers, providers } from 'ethers';
 import Web3 from 'web3';
 import './App.css';
 import SlabsAbi from './assets/SlabsAbi.json';
 import MonsterAbi from './assets/MonsterAbi.json';
 
-const SLABS = '0x383474C4532e1028327E1e5a75a6A480C775D9E3'
-const LABMONSTER = '0x7f0e3Fa937657D45e3848b5710962F9b7A1A5B1E'
+const SLABS = '0x4C74ce8Ec1a16B92a409b7E4d6D1737E36e0558b'
+const LABMONSTER = '0xc44C53F5028F9808D868eDf452C9Ff8970299FCE'
 const web3 = new Web3(window.ethereum)
 const SlabsContract = new web3.eth.Contract(SlabsAbi, SLABS);
 const MonsterContract = new web3.eth.Contract(MonsterAbi, LABMONSTER)
+const customWeb3 = new Web3(new Web3.providers.HttpProvider('https://rpc-mumbai.maticvigil.com'));
+
+let price = 15
+let mintPrice = price * 10 ** 18;
 
 function App() {
 
   const [account, setAccount] = useState('');
+  const [balance, setBalance] = useState(0)
+  const [allowance, setAllowance] = useState(0)
   const [userAddress, setUserAddress] = useState('');
   const [isConnected, setIsConnected] = useState(false)
 
-  const customWeb3 = new Web3(new Web3.providers.HttpProvider('https://rpc-mumbai.maticvigil.com'));
   const chainId = 80001
 
   const btnhandler = async() => {
@@ -28,13 +33,18 @@ function App() {
       // res[0] for fetching a first wallet
       window.ethereum
         .request({ method: "eth_requestAccounts" })
-        .then((res) => {
+        .then(async(res) => {
           if(window.ethereum.networkVersion != 80001) changeNetwork();
-          const user_address =res[0]
-          console.log(user_address)
-          const address = user_address.slice(0, 5) + '...'+ user_address.slice(-4, user_address.length)
+          console.log(res[0])
+          const address = res[0].slice(0, 5) + '...'+ res[0].slice(-4, res[0].length)
+          let _balance = await SlabsContract.methods.balanceOf(res[0]).call()
+          let _allowance = await SlabsContract.methods.allowance(res[0], LABMONSTER).call();
+          let nfts = await MonsterContract.methods.balanceOf(res[0]).call();
+          console.log('nfts', nfts)
           setAccount(address);
-          setUserAddress(user_address);
+          setBalance(_balance.toString())
+          setAllowance(_allowance.toString())
+          setUserAddress(res[0]);
           setIsConnected(true)
         });
     } else {
@@ -42,6 +52,23 @@ function App() {
     }
 
   };
+
+  const addWalletListener = () => {
+    if (window.ethereum) {
+      window.ethereum.on("accountsChanged", (accounts) => {
+        if (accounts.length > 0) {
+          setUserAddress(accounts[0]);
+        } else {
+          setUserAddress("");
+        }
+      });
+    } 
+  }
+  
+  useEffect(() => {
+    btnhandler();
+    addWalletListener()
+  })
 
   const changeNetwork = async() => {
     try {
@@ -72,25 +99,71 @@ function App() {
     gasPrice: ethers.utils.parseUnits('100', 'gwei'),
     gasLimit: 1100000
   }
+
+  const getMintId = async() => {
+    try{
+      let mintId = await MonsterContract.methods.house(userAddress).call();
+      console.log('mint id', mintId)
+      try{
+        await MonsterContract.methods.ownerOf(mintId).call()
+          .then(() => {
+            console.log('kkkk')
+            getMintId();
+          })
+          .catch(async(e) => {
+            console.log(e.message, typeof e.message)
+            if(balance < mintPrice) {
+              alert('Not enough SLABS to mint');
+              return
+            }
+            if(allowance < mintPrice) {
+              alert('Insufficient SLABS amount of allowance')
+              return
+            }
+            mintNFT(mintId)
+          })
+          
+      } catch(e) {
+        console.log(e.message, typeof e.message)
+        getMintId()
+      }
+      
+    } catch(e) {
+      console.log('1', e.message, typeof e.message)
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      getMintId();
+    }
+  }
+
+  const tokenApprove = async() => {
+    let res = await SlabsContract.methods.approve(LABMONSTER, ethers.utils.parseEther(price.toString())).send({
+      from: userAddress,
+      ...gas
+    });
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    return res
+  }
+  
+  const mintNFT = async(id) => {
+    let mintRes = await MonsterContract.methods.mint(id).send({
+      from: userAddress,
+      ...gas
+    });
+    return mintRes
+  }
   
   const mintNow = async() => {
     try{
-      // let res = await SlabsContract.methods.approve(LABMONSTER, 10000).send({from: userAddress});
-      // if(res) {
-        let rollDice = await MonsterContract.methods.rollDice().send({
-          from: userAddress,
-          ...gas
-        });
-        console.log('roll dice', rollDice)
-        if(rollDice) {
-          let house = await MonsterContract.methods.house(userAddress).call()
-          console.log('house', house)
-
+      let result = await tokenApprove();
+      if(result) {
+        try{
+          await getMintId()
+        } catch(e) {
+          console.log(e.message, typeof e.message)
         }
-      // }
-      // console.log(res)
+      }
     } catch(e) {
-      console.log("error", e)
+      console.log(e.message, typeof e.message)
     }
   }
 

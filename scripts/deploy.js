@@ -10,7 +10,6 @@ async function main() {
 
   const SLABS = await hre.ethers.getContractFactory("SLABS");
   const sLabs = await SLABS.deploy();
-
   await sLabs.deployed();
 
   console.log("SLABS deployed to:", sLabs.address);

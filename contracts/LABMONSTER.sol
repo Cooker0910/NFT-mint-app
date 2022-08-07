@@ -13,13 +13,13 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
 
     uint64 s_subscriptionId = 1305;
     address vrfCoordinator = 0x7a1BaC17Ccc5b313516C5E16fb24f7659aA5ebed;
-    bytes32 s_keyHash =
-        0x4b09e658ed251bcafeebbc69400383d49f344ace09b9576fe248bb02c003fe9f;
+    bytes32 s_keyHash = 0x4b09e658ed251bcafeebbc69400383d49f344ace09b9576fe248bb02c003fe9f;
     uint32 callbackGasLimit = 100000;
     uint16 requestConfirmations = 3;
     uint32 numWords = 1;
 
     address s_owner;
+    address public owner;
 
     string public baseTokenURI = "QmRaJabTWUT9orFKC98HfpudKdBj9VkKFJydSj3HFkYoXm";
     address public tokenAddress;
@@ -41,6 +41,15 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
         tokenAddress = _tokenAddress;
     }
 
+    modifier onlyOwner() {
+      require(msg.sender == owner, "!owner");
+      _;
+    }
+
+    function updateSlabs(address _address) public onlyOwner{
+        tokenAddress = _address;
+    }
+
     function mint(uint256 mintID) public {
         require(
             IERC20(tokenAddress).balanceOf(msg.sender) > (price * DECIMALS),
@@ -54,7 +63,7 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
         _safeMint(msg.sender, mintID);
     }
 
-    function rollDice() public returns (uint256 requestId) {
+    function rollDice(address player) external returns (uint256 requestId) {
         // require(s_results[roller] == 0, 'Already rolled');
         // Will revert if subscription is not set and funded.
         requestId = COORDINATOR.requestRandomWords(
@@ -65,17 +74,11 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
             numWords
         );
 
-        s_rollers[requestId] = _msgSender();
-        s_results[_msgSender()] = ROLL_IN_PROGRESS;
-        IERC20(tokenAddress).approve(address(this), price * DECIMALS);
-        for( ; ; ) {
-            if(s_results[_msgSender()] != ROLL_IN_PROGRESS) {
-                mint(s_results[_msgSender()]);
-                return requestId;
-            }
-        }
+        s_rollers[requestId] = player;
+        s_results[player] = ROLL_IN_PROGRESS;
         
         emit DiceRolled(requestId, _msgSender());
+        return requestId;   
     }
 
     function fulfillRandomWords(uint256 requestId, uint256[] memory randomWords)
@@ -127,10 +130,5 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
                     )
                 )
                 : "";
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == s_owner);
-        _;
     }
 }
