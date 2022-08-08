@@ -1,18 +1,14 @@
 import { useEffect, useState } from "react";
 import Web3 from 'web3'
-import SlabsAbi from '../assets/SlabsAbi.json';
 import MonsterAbi from '../assets/MonsterAbi.json';
 
-const SLABS = '0x4C74ce8Ec1a16B92a409b7E4d6D1737E36e0558b'
 const LABMONSTER = '0xc44C53F5028F9808D868eDf452C9Ff8970299FCE'
 const web3 = new Web3(window.ethereum)
-const SlabsContract = new web3.eth.Contract(SlabsAbi, SLABS);
 const MonsterContract = new web3.eth.Contract(MonsterAbi, LABMONSTER)
 
 const NftDetails = (props) => {
   const [details, setDetails] = useState({});
   const [confirm, setConfirm] = useState(false);
-  console.log(props.id)
 
   useEffect(() => {
     async function fetchData() {

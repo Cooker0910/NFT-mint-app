@@ -3,11 +3,12 @@ import { ethers } from 'ethers';
 import Web3 from 'web3';
 import './App.css';
 import NftDetails from './Components/NFT';
+import Spinner from './Components/Spinner'
 import SlabsAbi from './assets/SlabsAbi.json';
 import MonsterAbi from './assets/MonsterAbi.json';
 
 const SLABS = '0x4C74ce8Ec1a16B92a409b7E4d6D1737E36e0558b'
-const LABMONSTER = '0xc44C53F5028F9808D868eDf452C9Ff8970299FCE'
+const LABMONSTER = '0x13682379319DD14FE47d381139e57741520b8784'
 const web3 = new Web3(window.ethereum)
 const SlabsContract = new web3.eth.Contract(SlabsAbi, SLABS);
 const MonsterContract = new web3.eth.Contract(MonsterAbi, LABMONSTER)
@@ -28,6 +29,7 @@ const App =() => {
   const [userAddress, setUserAddress] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [cnt, setCnt] = useState(0)
+  const [loading, setLoading] = useState(false);
 
   const btnhandler = async () => {
     if (window.ethereum) {
@@ -49,18 +51,6 @@ const App =() => {
       alert("install metamask extension!!");
     }
   };
-
-  const addWalletListener = () => {
-    if (window.ethereum) {
-      window.ethereum.on("accountsChanged", (accounts) => {
-        if (accounts.length > 0) {
-          setUserAddress(accounts[0]);
-        } else {
-          setUserAddress("");
-        }
-      });
-    }
-  }
 
   const changeNetwork = async () => {
     try {
@@ -97,10 +87,7 @@ const App =() => {
           })
           .catch(async (e) => {
             let _allowance = await SlabsContract.methods.allowance(userAddress, LABMONSTER).call();
-            if (balance < mintPrice) {
-              alert('Not enough SLABS to mint');
-              return
-            }
+            
             console.log('allowance', typeof _allowance, _allowance)
             if (_allowance.toString() < mintPrice) {
               alert('Insufficient SLABS amount of allowance')
@@ -110,22 +97,32 @@ const App =() => {
           })
       })
       .catch(async(e) => {
-        console.log('get mint id err', e)
+        console.log('error', e)
         await new Promise(resolve => setTimeout(resolve, 10000));
         getMintId()
       }) 
   }
 
   const mintNFT = async (id) => {
-    let mintRes = await MonsterContract.methods.mint(id).send({
+    await MonsterContract.methods.mint(id).send({
       from: userAddress,
       ...gas
+    })
+    .then(async(res) => {
+      let nfts = await MonsterContract.methods.balanceOf(userAddress).call();
+      setCnt(nfts)
+      setLoading(false);
+      console.log('mint res', res)
     });
-    console.log('mint res', mintRes)
-    return mintRes
+    return
   }
 
   const mintNow = async () => {
+    setLoading(true);
+    if (balance < mintPrice) {
+      alert('Not enough SLABS to mint');
+      return
+    }
     SlabsContract.methods.approve(LABMONSTER, ethers.utils.parseEther(price.toString()))
       .send({
         from: userAddress,
@@ -135,7 +132,10 @@ const App =() => {
         getMintId()
       })
       .catch((e) => {
+        setLoading(false);
+        alert('Please try again')
         console.log('approve err', e)
+
       })
   }
 
@@ -166,6 +166,7 @@ const App =() => {
           })
         }
       </div>
+      {loading && <Spinner absolute />}
     </>
   );
 }
