@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 import Web3 from 'web3';
 import './App.css';
+import NftDetails from './Components/NFT';
 import SlabsAbi from './assets/SlabsAbi.json';
 import MonsterAbi from './assets/MonsterAbi.json';
 
@@ -12,45 +13,41 @@ const SlabsContract = new web3.eth.Contract(SlabsAbi, SLABS);
 const MonsterContract = new web3.eth.Contract(MonsterAbi, LABMONSTER)
 const customWeb3 = new Web3(new Web3.providers.HttpProvider('https://rpc-mumbai.maticvigil.com'));
 
+const chainId = 80001
 let price = 15
 let mintPrice = price * 10 ** 18;
+const gas = {
+  gasPrice: ethers.utils.parseUnits('100', 'gwei'),
+  gasLimit: 1100000
+}
 
-function App() {
+const App =() => {
 
   const [account, setAccount] = useState('');
   const [balance, setBalance] = useState(0)
-  const [allowance, setAllowance] = useState(0)
   const [userAddress, setUserAddress] = useState('');
-  const [isConnected, setIsConnected] = useState(false)
+  const [isConnected, setIsConnected] = useState(false);
+  const [cnt, setCnt] = useState(0)
 
-  const chainId = 80001
-
-  const btnhandler = async() => {
-  
-    // Asking if metamask is already present or not
+  const btnhandler = async () => {
     if (window.ethereum) {
-  
-      // res[0] for fetching a first wallet
       window.ethereum
         .request({ method: "eth_requestAccounts" })
-        .then(async(res) => {
-          if(window.ethereum.networkVersion != 80001) changeNetwork();
+        .then(async (res) => {
+          if (window.ethereum.networkVersion !== 80001) changeNetwork();
           console.log(res[0])
-          const address = res[0].slice(0, 5) + '...'+ res[0].slice(-4, res[0].length)
+          const address = res[0].slice(0, 5) + '...' + res[0].slice(-4, res[0].length)
           let _balance = await SlabsContract.methods.balanceOf(res[0]).call()
-          let _allowance = await SlabsContract.methods.allowance(res[0], LABMONSTER).call();
           let nfts = await MonsterContract.methods.balanceOf(res[0]).call();
-          console.log('nfts', nfts)
+          setCnt(nfts)
           setAccount(address);
           setBalance(_balance.toString())
-          setAllowance(_allowance.toString())
           setUserAddress(res[0]);
           setIsConnected(true)
-        });
+        })
     } else {
       alert("install metamask extension!!");
     }
-
   };
 
   const addWalletListener = () => {
@@ -62,22 +59,17 @@ function App() {
           setUserAddress("");
         }
       });
-    } 
+    }
   }
-  
-  useEffect(() => {
-    btnhandler();
-    addWalletListener()
-  })
 
-  const changeNetwork = async() => {
+  const changeNetwork = async () => {
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: customWeb3.utils.toHex(chainId) }]
       });
     } catch (err) {
-        // This error code indicates that the chain has not been added to MetaMask
+      // This error code indicates that the chain has not been added to MetaMask
       if (err.code === 4902) {
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
@@ -95,88 +87,86 @@ function App() {
     }
   }
 
-  const gas = {
-    gasPrice: ethers.utils.parseUnits('100', 'gwei'),
-    gasLimit: 1100000
-  }
-
-  const getMintId = async() => {
-    try{
-      let mintId = await MonsterContract.methods.house(userAddress).call();
-      console.log('mint id', mintId)
-      try{
-        await MonsterContract.methods.ownerOf(mintId).call()
+  const getMintId = async () => {
+    MonsterContract.methods.house(userAddress).call()
+      .then((mintId) => {
+        console.log('mint id', mintId)
+        MonsterContract.methods.ownerOf(mintId).call()
           .then(() => {
-            console.log('kkkk')
             getMintId();
           })
-          .catch(async(e) => {
-            console.log(e.message, typeof e.message)
-            if(balance < mintPrice) {
+          .catch(async (e) => {
+            let _allowance = await SlabsContract.methods.allowance(userAddress, LABMONSTER).call();
+            if (balance < mintPrice) {
               alert('Not enough SLABS to mint');
               return
             }
-            if(allowance < mintPrice) {
+            console.log('allowance', typeof _allowance, _allowance)
+            if (_allowance.toString() < mintPrice) {
               alert('Insufficient SLABS amount of allowance')
               return
             }
             mintNFT(mintId)
           })
-          
-      } catch(e) {
-        console.log(e.message, typeof e.message)
+      })
+      .catch(async(e) => {
+        console.log('get mint id err', e)
+        await new Promise(resolve => setTimeout(resolve, 10000));
         getMintId()
-      }
-      
-    } catch(e) {
-      console.log('1', e.message, typeof e.message)
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      getMintId();
-    }
+      }) 
   }
 
-  const tokenApprove = async() => {
-    let res = await SlabsContract.methods.approve(LABMONSTER, ethers.utils.parseEther(price.toString())).send({
-      from: userAddress,
-      ...gas
-    });
-    await new Promise(resolve => setTimeout(resolve, 10000));
-    return res
-  }
-  
-  const mintNFT = async(id) => {
+  const mintNFT = async (id) => {
     let mintRes = await MonsterContract.methods.mint(id).send({
       from: userAddress,
       ...gas
     });
+    console.log('mint res', mintRes)
     return mintRes
   }
-  
-  const mintNow = async() => {
-    try{
-      let result = await tokenApprove();
-      if(result) {
-        try{
-          await getMintId()
-        } catch(e) {
-          console.log(e.message, typeof e.message)
-        }
-      }
-    } catch(e) {
-      console.log(e.message, typeof e.message)
-    }
+
+  const mintNow = async () => {
+    SlabsContract.methods.approve(LABMONSTER, ethers.utils.parseEther(price.toString()))
+      .send({
+        from: userAddress,
+        ...gas
+      })
+      .then((res) => {
+        getMintId()
+      })
+      .catch((e) => {
+        console.log('approve err', e)
+      })
   }
 
+  useEffect(() => {
+    btnhandler();
+  }, [])
   return (
-    <div className="App">
-      <p>LAB MONSTERS created by Starter Labs</p>
-      {isConnected ? 
-        <button onClick={btnhandler}>{account}</button>
-        :
-        <button onClick={btnhandler}>Connect Wallet</button>
-      }
-      <button onClick={mintNow}>Mint Now</button>
-    </div>
+    <>
+      <div className="App">
+        <p>LAB MONSTERS created by Starter Labs</p>
+        {isConnected ?
+          <a href={'https://mumbai.polygonscan.com/address/' + userAddress} target="_blank" className="address">{account}</a>
+          :
+          <button onClick={btnhandler}>Connect Wallet</button>
+        }
+        <button onClick={mintNow}>Mint Now</button>
+      </div>
+      <div className='nfts'>
+        {
+          [...new Array(Number(cnt))].map((item, index) => {
+            return (
+              <NftDetails 
+                id = {index}
+                key={index}
+                address = {userAddress}
+              />
+            )
+          })
+        }
+      </div>
+    </>
   );
 }
 
