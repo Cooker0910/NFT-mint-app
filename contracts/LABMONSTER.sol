@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
+contract LabMonster is ERC721Enumerable, VRFConsumerBaseV2 {
     using Strings for uint256;
     VRFCoordinatorV2Interface COORDINATOR;
 
@@ -18,26 +18,24 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
     uint16 requestConfirmations = 3;
     uint32 numWords = 1;
 
-    address s_owner;
     address public owner;
 
-    string public baseTokenURI = "QmRaJabTWUT9orFKC98HfpudKdBj9VkKFJydSj3HFkYoXm";
+    string public baseTokenURI = "ipfs://QmaWLT5d35SNRtCM88eAt6ayZEbK6EhaDJcShnXDaUpZhA/";
     address public tokenAddress;
-    uint256 constant DECIMALS = 10**18;
-    uint256 price = 15;
+    uint256 public constant price = 15 * 10 ** 18;
 
     mapping(uint256 => address) public s_rollers;
     mapping(address => uint256) public s_results;
 
-    uint256 private constant ROLL_IN_PROGRESS = 42;
+    uint256 private constant ROLL_IN_PROGRESS = 101;
 
     event DiceRolled(uint256 indexed requestId, address indexed roller);
     event DiceLanded(uint256 indexed requestId, uint256 indexed result);
     event output(uint256 output);
 
-    constructor(address _tokenAddress) ERC721("Lab Monstaer", "LAVMONSTER") VRFConsumerBaseV2(vrfCoordinator) {
+    constructor(address _tokenAddress) ERC721("Lab Monster", "LAVMONSTER") VRFConsumerBaseV2(vrfCoordinator) {
         COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
-        s_owner = msg.sender;
+        owner = msg.sender;
         tokenAddress = _tokenAddress;
     }
 
@@ -50,16 +48,20 @@ contract LabMonster is ERC721URIStorage, VRFConsumerBaseV2 {
         tokenAddress = _address;
     }
 
+    function changeTokenURI(string memory _newTokenURI) public onlyOwner {
+        baseTokenURI = _newTokenURI;
+    }
+
     function mint(uint256 mintID) public {
         require(
-            IERC20(tokenAddress).balanceOf(msg.sender) > (price * DECIMALS),
+            IERC20(tokenAddress).balanceOf(msg.sender) > price,
             "Not enough SLABS to mint"
         );
         require(
-            IERC20(tokenAddress).allowance(msg.sender, address(this)) > (price * DECIMALS),
-            "Not enough SLABS to mint"
+            IERC20(tokenAddress).allowance(msg.sender, address(this)) >= price,
+            "Insufficient SLABS amount of allowance"
         );
-        IERC20(tokenAddress).transferFrom(msg.sender, address(this), price * DECIMALS);
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), price);
         _safeMint(msg.sender, mintID);
     }
 

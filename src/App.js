@@ -135,7 +135,6 @@ const App =() => {
         setLoading(false);
         alert('Please try again')
         console.log('approve err', e)
-
       })
   }
 

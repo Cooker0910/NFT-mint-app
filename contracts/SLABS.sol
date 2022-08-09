@@ -54,8 +54,8 @@ contract SLABS is ERC20 {
         return true;
     }
 
-    function mint(uint256 amount) public onlyOwner {
-        _mint(msg.sender, amount);
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
     }
 
 }
